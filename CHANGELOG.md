@@ -7,7 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 ## [pr-166-test] - 2025-09-29
 
-{"message":"Resource not accessible by integration","documentation_url":"https://docs.github.com/rest/releases/releases#generate-release-notes-content-for-a-release","status":"403"}
+Test release from PR #166
+
+This is a test release created automatically from pull request #166.
+
+- Branch: feature/release-mirror-workflow
+- Commit: a94abb334a4f53da94f726c8385009a8c9ae2fa3
+- Author: gmrehbein
 
 
 ### Added
