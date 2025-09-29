@@ -12,7 +12,7 @@ Test release from PR #166
 This is a test release created automatically from pull request #166.
 
 - Branch: feature/release-mirror-workflow
-- Commit: a94abb334a4f53da94f726c8385009a8c9ae2fa3
+- Commit: bd7d26c992e9e3edf9206c8755ecb3ec785ffed2
 - Author: gmrehbein
 
 
