@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+## [pr-166-test] - 2025-09-29
+
+{"message":"Resource not accessible by integration","documentation_url":"https://docs.github.com/rest/releases/releases#generate-release-notes-content-for-a-release","status":"403"}
+
 
 ### Added
 
@@ -16,9 +20,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Removed
 
+## [1.0.0] 2025-06-25
+
+### Changed
+
+#### SDK
+- Introduced `bn254fr_class.h` and `vbn254fr_class.h` which contain C++ wrappers for API functions from `bn254fr.h` and `vbn254fr.h`
+- Deprecated integer debug `print` function.
+- Adapted the examples to the new API
+
 ## [0.9.9] 2025-06-01
 
-### CHanged
+### Changed
 
 #### Interpreter
 - Implement a new backend that performs no allocation at runtime
