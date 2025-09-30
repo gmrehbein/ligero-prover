@@ -1,7 +1,7 @@
 {
   "version": "pr-166-test",
   "release_date": "2025-09-30",
-  "private_commit_sha": "2fa7e37fcfec1b37cd5e30012e3a4358bc1ca9a2",
+  "private_commit_sha": "ae1b5d35c68799e4d10a2c5fb4c938d3c13bc65c",
   "private_repo": "ligeroinc/ligetron",
   "public_repo": "gmrehbein/ligero-prover",
   "source": "automated-slim-publisher"
