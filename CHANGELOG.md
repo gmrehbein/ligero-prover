@@ -5,16 +5,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
-## [pr-166-test] - 2025-09-30
-
-Test release from PR #166
-
-This is a test release created automatically from pull request #166.
-
-- Branch: feature/release-mirror-workflow
-- Commit: a60783ebeb6387bec063d55cae7f878b277eaf21
-- Author: gmrehbein
-
 
 ### Added
 
