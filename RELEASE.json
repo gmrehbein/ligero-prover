@@ -1,10 +1,10 @@
 {
   "version": "v0.0.0-test.1",
-  "release_date": "2025-10-03",
+  "release_date": "2025-10-04",
   "private_commit_sha": "5616c7fc4d2c49e0243eb7db8f5eddbe7d3284a0",
   "private_repo": "ligeroinc/ligetron",
   "public_repo": "gmrehbein/ligero-prover",
   "source": "Publish Public Release (reusable/manual)",
-  "workflow_run_id": "18235474036",
-  "workflow_run_url": "https://github.com/ligeroinc/ligetron/actions/runs/18235474036"
+  "workflow_run_id": "18248220497",
+  "workflow_run_url": "https://github.com/ligeroinc/ligetron/actions/runs/18248220497"
 }
