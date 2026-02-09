@@ -14,8 +14,19 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(json)
 
+# Use the NEW behavior for CMP0167 (CMake ≥3.29):
+# ensures that try_compile() respects COMPILE_OPTIONS and LINK_OPTIONS.
+# Guarded with if(POLICY) for compatibility with older CMake versions.
 if(POLICY CMP0167)
   cmake_policy(SET CMP0167 NEW)
+endif()
+
+# Use NEW behavior for CMP0144 (CMake ≥3.27):
+# allows find_package() to honor upper-case <PKG>_ROOT environment variables
+# (e.g. BOOST_ROOT) in addition to the lowercase CMake variables.
+# Guarded with if(POLICY) for compatibility with older CMake versions.
+if(POLICY CMP0144)
+  cmake_policy(SET CMP0144 NEW)
 endif()
 
 
@@ -29,7 +40,8 @@ if (NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Web")
   find_package(Dawn REQUIRED)
   find_package(wabt REQUIRED)
 
-  include_directories(${Dawn_INCLUDE_DIRS})
+  # Note: Dawn_INCLUDE_DIRS is not set by modern Dawn CMake config
+  # Include directories are automatically provided via the dawn::webgpu_dawn imported target
   include_directories(${Boost_INCLUDE_DIRS})
 endif()
 
@@ -45,10 +57,17 @@ execute_process(
   OUTPUT_VARIABLE GIT_COMMIT_HASH
   OUTPUT_STRIP_TRAILING_WHITESPACE)
 
+file(READ "${CMAKE_SOURCE_DIR}/VERSION" LIGETRON_VERSION)
+string(STRIP "${LIGETRON_VERSION}" LIGETRON_VERSION)
+string(REGEX MATCH "^([0-9]+)\\.([0-9]+)\\.([0-9]+)" _ ${LIGETRON_VERSION})
+set(LIGETRON_VERSION_MAJOR ${CMAKE_MATCH_1})
+set(LIGETRON_VERSION_MINOR ${CMAKE_MATCH_2})
+set(LIGETRON_VERSION_PATCH ${CMAKE_MATCH_3})
+
 add_compile_definitions(
-  LIGETRON_VERSION_MAJOR=1
-  LIGETRON_VERSION_MINOR=0
-  LIGETRON_VERSION_PATCH=0
+  LIGETRON_VERSION_MAJOR=${LIGETRON_VERSION_MAJOR}
+  LIGETRON_VERSION_MINOR=${LIGETRON_VERSION_MINOR}
+  LIGETRON_VERSION_PATCH=${LIGETRON_VERSION_PATCH}
   LIGETRON_GIT_BRANCH="${GIT_BRANCH}"
   LIGETRON_GIT_COMMIT_HASH="${GIT_COMMIT_HASH}")
 
@@ -59,18 +78,19 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "Web")
   file(COPY "${CMAKE_SOURCE_DIR}/shader" DESTINATION "${CMAKE_BINARY_DIR}/pack")
 
   add_compile_definitions(NDEBUG)
-  add_compile_options(-O3 -Wno-narrowing -mbulk-memory -sUSE_ZLIB=1)
+  add_compile_options(-O3 -mbulk-memory -sUSE_ZLIB=1 --use-port=emdawnwebgpu)
   add_link_options(
-    -sUSE_WEBGPU=1
+    --use-port=emdawnwebgpu
     -sUSE_ZLIB=1
     -sERROR_ON_UNDEFINED_SYMBOLS=0
     -sTOTAL_STACK=2MB
-    -sINITIAL_MEMORY=256MB)
+    -sINITIAL_MEMORY=256MB
+    -sALLOW_MEMORY_GROWTH)
   add_link_options(-sINVOKE_RUN=0 -sEXPORTED_RUNTIME_METHODS=['FS','callMain'])
   add_link_options(--preload-file "${CMAKE_BINARY_DIR}/pack@/")
 
   if (ZKPLATFORM)
-    add_link_options(-sENVIRONMENT=worker -sALLOW_MEMORY_GROWTH)
+    add_link_options(-sENVIRONMENT=worker)
   else()
     set(CMAKE_EXECUTABLE_SUFFIX ".html")
     add_link_options(--emrun)
@@ -79,10 +99,7 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "Web")
 
   add_link_options(
     -sASYNCIFY=1
-    -sASYNCIFY_IMPORTS=emscripten_sleep
-    -sASYNCIFY_ONLY=[]
     -sASYNCIFY_STACK_SIZE=4194304
-    -sASYNCIFY_ADD=['wgpuRequestAdapterSync','wgpuRequestDeviceSync','wgpuBufferMapSync','wgpuDeviceSynchronize']
   )
 
 else()
@@ -97,28 +114,41 @@ else()
 endif()
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
-include_directories(${CMAKE_PREFIX_PATH}/include)
+# External library headers as SYSTEM to suppress warnings from them
+include_directories(SYSTEM ${CMAKE_PREFIX_PATH}/include)
 link_directories(${CMAKE_PREFIX_PATH}/lib)
 
-add_library(log          include/util/log.cpp)
+add_library(logging      include/util/log.cpp)
 add_library(bn254        src/bn254.cpp)
 add_library(portable_archive
   include/util/boost/portable_binary_iarchive.cpp
   include/util/boost/portable_binary_oarchive.cpp)
 
+
+file(GLOB_RECURSE WEBGPU_SOURCES CONFIGURE_DEPENDS
+    src/webgpu/*.cpp
+)
+add_library(webgpu_engine STATIC ${WEBGPU_SOURCES})
+target_include_directories(webgpu_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/)
+
+# Link to Dawn for native builds (provides include directories automatically via imported target)
+# For web builds, link only Boost libraries
+if(NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Web")
+  target_link_libraries(webgpu_engine dawn::webgpu_dawn ${Boost_LIBRARIES})
+else()
+  target_link_libraries(webgpu_engine ${Boost_LIBRARIES})
+endif()
+
 macro (link_binaries)
   foreach(BINARY IN ITEMS ${ARGN})
     target_include_directories(${BINARY} PRIVATE ${json_SOURCE_DIR}/include)
-    target_link_libraries(${BINARY} log bn254 portable_archive)
+    target_link_libraries(${BINARY}
+      webgpu_engine logging bn254 portable_archive)
 
     if("${CMAKE_BUILD_TYPE}" STREQUAL "Web")
       target_link_libraries(${BINARY}
         gmp gmpxx ssl crypto wabt boost_serialization boost_iostreams)
     else()
-      if (ENABLE_CUDA)
-        target_link_libraries(${BINARY} cuNTT cudart)
-      endif()
-
       target_link_libraries(${BINARY}
         ${Boost_LIBRARIES}
         ZLIB::ZLIB
@@ -136,4 +166,3 @@ link_binaries(webgpu_prover webgpu_verifier)
 
 enable_testing()
 add_subdirectory(tests)
-

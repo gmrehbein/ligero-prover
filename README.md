@@ -201,21 +201,43 @@ cd ligetron
 
 ### Build the native version of the Prover/Verifier
 
-From the root directory:
+From the project root directory:
 ```bash
 mkdir build && cd build
 cmake -DCMAKE_BUILD_TYPE=Release ..
-make -j
+make
 ```
 
 ---
 ### Build the web version of the Prover/Verifier
 
-From the root directory:
+First, make sure Emscripten is installed and activated on your system. See [Install Emscripten](#install-emscripten) for more details.
+
+Before we continue, it's important to understand how the web build works:
+- All dependencies must be built as WASM and installed to `<path-to-wasm-libs>`. To make life easier, we provide a repo that contains precompiled dependencies: [wasm-libs](https://github.com/ligeroinc/wasm-libs).
+- To avoid uploading the shader and application each time opening the page, we use Emscripten's preload feature. All contents in the `<build-directory>/pack` folder will be automatically bundled at compile time. (Remember to clear the cache after changing the contents since it won't trigger a recompile.)
+- The target prover/verifier WASM will be embedded in an HTML shell (the default one is `emscripten_templates/edit_distance.html`). Depending on your needs, you can customize the shell to take a different number of inputs.
+
+From the project root directory:
 ``` bash
 mkdir -p build-web && cd build-web
-cmake -DCMAKE_BUILD_TYPE=Web -DCMAKE_PREFIX_PATH=<path-to-dependencies> ..
-make -j
+# build system will automatically create "pack" bundle subdirectory in the build directory,
+# and copy directory with webgpu shaders there
+#
+# (Optional) If we need to copy the application wasm into the bundle:
+mkdir pack             # Manually pre-create the preload bundle directory
+cp app.wasm pack/      # copy the application into the bundle directory
+#
+emcmake cmake -DCMAKE_BUILD_TYPE=Web -DCMAKE_PREFIX_PATH=<path-to-wasm-libs> ..
+emmake make
+```
+
+**IMPORTANT**
+
+Although it's tempting to double-click and open the `webgpu_prover.html`, it won't work since the strict browser CORS rules prohibit loading other files from localhost. Use `emrun` or hosting a HTTP server instead:
+
+```bash
+emrun --browser chrome webgpu_prover.html
 ```
 
 ---
@@ -279,7 +301,7 @@ Navigate to the `build` directory to run the examples.
 Suppose we have `edit.wasm` either by compiling `/examples/edit_distance.cpp` or pick from `wasm/edit.wasm`. The arguments are `abcde` and `bcdef`, then:
 
 ```bash
-./webgpu_prover '{"program":"../sdk/build/examples/edit.wasm","shader-path":"../shader","packing":8192,"private-indices":[1],"args":[{"str":"abcdeabcdeabcde"},{"str":"bcdefabcdeabcde"},{"i64":15},{"i64":15}]}'
+./webgpu_prover '{"program":"../sdk/cpp/build/examples/edit.wasm","shader-path":"../shader","packing":8192,"private-indices":[1],"args":[{"str":"abcdeabcdeabcde"},{"str":"bcdefabcdeabcde"},{"i64":15},{"i64":15}]}'
 ```
 
 This will run the Edit Distance program with the given packing size and arguments and verify that the edit distance between the two input strings `abcde` and `bcdef` is less than 5. The last two arguments are the length of the two input strings. You can run this code with two strings of arbitrary lengths. If you try to generate a proof with strings whose edit distance >= 5, the verification will fail.
@@ -287,7 +309,7 @@ This will run the Edit Distance program with the given packing size and argument
 For verification "private" arguments can be "obscured" as long as their input type is still correct and the argument length is the same:
 
 ```bash
-./webgpu_verifier '{"program":"../sdk/build/examples/edit.wasm","shader-path":"../shader","packing":8192,"private-indices":[1],"args":[{"str":"xxxxxxxxxxxxxxx"},{"str":"bcdefabcdeabcde"},{"i64":15},{"i64":15}]}'
+./webgpu_verifier '{"program":"../sdk/cpp/build/examples/edit.wasm","shader-path":"../shader","packing":8192,"private-indices":[1],"args":[{"str":"xxxxxxxxxxxxxxx"},{"str":"bcdefabcdeabcde"},{"i64":15},{"i64":15}]}'
 ```
 
 ## Hardware Acceleration

@@ -4,6 +4,47 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.0](https://github.com/ligeroinc/ligetron/compare/v1.2.0...v1.3.0) (2026-01-29)
+
+
+### Features
+
+* **sdk:** add sha256 hash into p256 ECDSA example ([906c346](https://github.com/ligeroinc/ligetron/commit/906c346304b3436c37d305dc79cfcdf404482d91))
+* **sdk:** generic ECDSA and P-256 implementation ([b4d68ba](https://github.com/ligeroinc/ligetron/commit/b4d68ba63cb386daf55069ebf1cc56ed1713646f))
+* **sdk:** implement ECDSA verification for message hash ([a5154e1](https://github.com/ligeroinc/ligetron/commit/a5154e1ea8fad1ce9dc8787eb7c0e4e8781b9858))
+* **sdk:** implement generator point optimization for p256 ([7cbe94e](https://github.com/ligeroinc/ligetron/commit/7cbe94e9c12e82c33920c4f26d9ec1deb0919540))
+* **sdk:** implement import/export bytes for uint256 field ([5a2cd72](https://github.com/ligeroinc/ligetron/commit/5a2cd72abe6a6c02c6b1203609d43f4ee2aaa605))
+* **sdk:** optimized uint256 field arithmetic implementation ([1dc3a7d](https://github.com/ligeroinc/ligetron/commit/1dc3a7dd57b5534116e96298e3d85fda45e27401))
+* **sdk:** pass arguments as hex data in P256 example ([760aa48](https://github.com/ligeroinc/ligetron/commit/760aa48e06cf33a179e0c4b0a6b76fda385b5407))
+* **sdk:** update Rust sdk to match 1.2.0 ([#232](https://github.com/ligeroinc/ligetron/issues/232)) ([e6667b3](https://github.com/ligeroinc/ligetron/commit/e6667b31e9b1aef3c20b7d3c0137562d65ef30ae))
+* updated "Web" build to use "emdawnwebgpu" ([#230](https://github.com/ligeroinc/ligetron/issues/230)) ([c2519f8](https://github.com/ligeroinc/ligetron/commit/c2519f8c444311f5535a34c4a20de65e59abc8c5))
+
+
+### Bug Fixes
+
+* **sdk:** add constraints in uint256 field import_limbs/export_limbs ([e60a576](https://github.com/ligeroinc/ligetron/commit/e60a5761c95ecb22fba0c0a34ce76a1de8d0133e))
+* **sdk:** fix overflow bug in uint256 field implementation ([d04bc5e](https://github.com/ligeroinc/ligetron/commit/d04bc5e88ed9c32916a812fb38fe45d444d58142))
+* **sdk:** fix polynomial multiplication check in big integer implementation ([#257](https://github.com/ligeroinc/ligetron/issues/257)) ([059e6fb](https://github.com/ligeroinc/ligetron/commit/059e6fba31492cdc49159119652e2c378c2d838e))
+* **sdk:** fix return type for witness_cast_u64 ([1c9a96e](https://github.com/ligeroinc/ligetron/commit/1c9a96ed7b7c90dd4885ff1a8472570264ac99b9))
+
+## [1.2.0](https://github.com/ligeroinc/ligetron/compare/v1.1.0...v1.2.0) (2025-11-22)
+
+
+### Features
+
+* **sdk:** implement C++ wrapper for uint256 values ([77cac8b](https://github.com/ligeroinc/ligetron/commit/77cac8bdbc4f5b9041094930c36845f4c3b38436))
+* **sdk:** implement mux, eqz, to_bits operations for uint256 field element ([4e87f85](https://github.com/ligeroinc/ligetron/commit/4e87f85868b6498b7cf0cd37090f4c8740fcbde1))
+* **sdk:** implement uint256 field arithmetic ([c12cd9f](https://github.com/ligeroinc/ligetron/commit/c12cd9f9c468e85ae79ea3516832606748b6879b))
+* **sdk:** uint256 API implementation ([8128a33](https://github.com/ligeroinc/ligetron/commit/8128a33fa65e05d034feee7a14bb45eab2fbd7f7))
+* **webgpu:** implement webgpu modular exponentiation ([f156795](https://github.com/ligeroinc/ligetron/commit/f156795f106016ae08d43f5f73caeb5a01bd97b9))
+
+
+### Bug Fixes
+
+* add correct sdk build paths to gitignore for cpp and rust ([7ed9acd](https://github.com/ligeroinc/ligetron/commit/7ed9acd3ebf7a2f8d3cdda72cb0a63be627cfb2f))
+* **sdk:** respect len parameter in uint256_set_bytes* functions ([a6a2f29](https://github.com/ligeroinc/ligetron/commit/a6a2f293ff3f6d51f9ee74de2b576532e22c9aed))
+* **util:** safely extract 64-bit values from mpz::get_ui() ([2f02f74](https://github.com/ligeroinc/ligetron/commit/2f02f74c9acd42725c1706dd9d36ea6055cb3788))
+
 ## [1.1.0]
 
 ### Added
