@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2025 Ligero, Inc.
+ * Copyright (C) 2023-2026 Ligero, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <ligetron/ec/p256.hpp>
+#include <ligetron/ec/secp256k1.hpp>
 #include <ligetron/ec/ecdsa.hpp>
 #include <ligetron/sha2.h>
 #include <ligetron/api.h>
@@ -41,19 +41,19 @@ int main(int argc, char *argv[]) {
     ligetron_sha2_256(msg_hash, (const unsigned char*)msg_str, args_len[1] - 1);
 
     // read signature r and s values
-    ec::p256_curve::scalar_field_element r;
-    ec::p256_curve::scalar_field_element s;
+    ec::secp256k1_curve::scalar_field_element r;
+    ec::secp256k1_curve::scalar_field_element s;
     r.import_bytes_big({signature, 32});
     s.import_bytes_big({signature + 32, 32});
 
     // read public key
-    ec::p256_curve::base_field_element pubkey_x;
-    ec::p256_curve::base_field_element pubkey_y;
+    ec::secp256k1_curve::base_field_element pubkey_x;
+    ec::secp256k1_curve::base_field_element pubkey_y;
     pubkey_x.import_bytes_big({pubkey, 32});
     pubkey_y.import_bytes_big({pubkey + 32, 32});
-    ec::p256_curve::point pub_key{pubkey_x, pubkey_y};
+    ec::secp256k1_curve::point pub_key{pubkey_x, pubkey_y};
 
-    ecdsa_verify<ec::p256_curve>(msg_hash, r, s, pub_key);
+    assert_one(ecdsa_verify<ec::secp256k1_curve>(msg_hash, r, s, pub_key));
 
     return 0;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2025 Ligero, Inc.
+ * Copyright (C) 2023-2026 Ligero, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -164,11 +164,6 @@ struct openssl_hash : public overload_hash<openssl_hash<Hash>> {
         auto begin() { return std::begin(data); }
         auto end() { return std::end(data); }
         size_t size() const { return digest_size; }
-
-        template <typename Archive>
-        void serialize(Archive& ar, const unsigned int) {
-            ar & data;
-        }
     };
     
     openssl_hash() : ctx_(nullptr) { init(); }

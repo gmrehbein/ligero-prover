@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2025 Ligero, Inc.
+ * Copyright (C) 2023-2026 Ligero, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -92,13 +92,6 @@ struct merkle_tree {
 
         const auto& operator[](size_t i) const { return nodes_.at(i); }
 
-        template <typename Archive>
-        void serialize(Archive& ar, const unsigned int) {
-            ar & total_count_;
-            ar & known_index_;
-            ar & nodes_;
-        }
-        
     protected:
         size_t total_count_;
         std::vector<size_t> known_index_;

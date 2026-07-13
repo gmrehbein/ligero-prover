@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2025 Ligero, Inc.
+ * Copyright (C) 2023-2026 Ligero, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -94,24 +94,13 @@ struct p256_curve_def {
         return res;
     }
 
-    static constexpr size_t generator_table_window_bit_size = 8;
-    static constexpr size_t generator_table_size =
-        2 << generator_table_window_bit_size;
-
-    using generator_table_point =
-        std::tuple<base_field_element, base_field_element>;
-
-    using generator_table_window =
-        std::array<generator_table_point, generator_table_size>;
-
-    using generator_table_t = std::array <
-        generator_table_window,
-        256 / generator_table_window_bit_size
-    >;
-
-    /// Returns reference to generator precomputer table
-    static generator_table_t &generator_table();
+    struct generator_table:
+            public detail::affine_generator_table_def<base_field_element, 8> {
+        static table_t &table();
+    };
 };
+
+static_assert(detail::EllipticCurveDefWithGeneratorTable<p256_curve_def>);
 
 using p256_curve = detail::elliptic_curve <
     detail::weierstrass_affine_curve <

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2025 Ligero, Inc.
+ * Copyright (C) 2023-2026 Ligero, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 #include <ligetron/poseidon.h>
 
 using namespace ligetron;
-using poseidon_context_fast_t = poseidon_vec_context<poseidon_permx5_254bit_3, true>;
 
 int main(int argc, char *argv[]) {
     const char* input_num = argv[1];
@@ -25,8 +24,8 @@ int main(int argc, char *argv[]) {
 
     vbn254fr_class input(input_num), ref(ref_num);
 
-    poseidon_context_fast_t::global_init();
-    poseidon_context_fast_t ctx;
+    poseidon_vec_context<poseidon_permx5_254bit_3>::global_init();
+    poseidon_vec_context<poseidon_permx5_254bit_3> ctx;
 
     ctx.digest_update(input);
     ctx.digest_final();

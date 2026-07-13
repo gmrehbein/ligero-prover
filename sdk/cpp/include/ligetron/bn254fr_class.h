@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2025 Ligero, Inc.
+ * Copyright (C) 2023-2026 Ligero, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,6 +51,8 @@ struct bn254fr_class {
     /** Resets the constraints and returns mutable pointer to internal data */
     __bn254fr* clear_data();
 
+    __bn254fr* data();
+    
     /** Returns unmutable pointer to internal data */
     const __bn254fr* data() const;
 

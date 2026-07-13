@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2025 Ligero, Inc.
+ * Copyright (C) 2023-2026 Ligero, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,18 +37,19 @@ struct bn254fr_module : public host_module {
     bn254fr_module(Context *ctx) : ctx_(ctx) { }
 
     zkp::lazy_witness* load_bn254(u32 bn254_addr) {
-        uintptr_t ptr = ctx_->template memory_load<uintptr_t>(bn254_addr);
-        zkp::lazy_witness* ret = std::bit_cast<zkp::lazy_witness*>(ptr);
-        return ret;
+        // Always read 8 bytes to match the guest's uint64_t __handle field,
+        // regardless of host pointer width (4 on WASM, 8 on native).
+        uint64_t val = ctx_->template memory_load<uint64_t>(bn254_addr);
+        uintptr_t ptr = static_cast<uintptr_t>(val);
+        return std::bit_cast<zkp::lazy_witness*>(ptr);
     }
 
     void store_bn254(u32 bn254_addr, zkp::lazy_witness *ptr) {
-        uintptr_t val = std::bit_cast<uintptr_t>(ptr);
-        ctx_->memory_store(bn254_addr, val);
-
-        // The BN254 handle we store here is public,
-        // Ensure the written range is not marked secret.
-        ctx_->memory().unmark_closed(bn254_addr, bn254_addr + sizeof(val));
+        // Always write 8 bytes to match the guest's uint64_t __handle field.
+        // On WASM (32-bit), the pointer is zero-extended to 64 bits.
+        uint64_t val = static_cast<uint64_t>(std::bit_cast<uintptr_t>(ptr));
+        ctx_->template memory_store<uint64_t>(bn254_addr, val);
+        ctx_->memory().unmark_closed(bn254_addr, bn254_addr + sizeof(uint64_t));
     }
 
     void bn254fr_alloc() {
@@ -155,6 +156,13 @@ struct bn254fr_module : public host_module {
 
             ctx_->backend().manager().recycle_mpz(exp);
             ctx_->backend().manager().constrain_equal(*x, *sum);
+
+            // Enforce reverse-order destruction so these witnesses commit (and land in the
+            // linear rows) in a deterministic order. std::vector element-destruction order is
+            // implementation-defined and differs between libc++ (wasm/macOS) and libstdc++
+            // (Linux), which otherwise permutes the linear commitment across platforms. Same
+            // discipline as decomposed_bits in core.hpp (commit 0ca047a).
+            while (!bytes.empty()) bytes.pop_back();
         } else {
             auto *y = ctx_->backend().manager().acquire_mpz();
             mpz_import(y->get_mpz_t(),
@@ -357,18 +365,19 @@ struct bn254fr_module : public host_module {
             throw wasm_trap{"invalid size for bn254fr_to_bytes"};
         }
 
-        //memset(mem + data_addr, 0, size);
         size_t written = 0;
         memset(mem + data_addr, 0, size);
-        mpz_export(mem + data_addr,
-                   &written,
-                   order,
-                   sizeof(u8),
-                   0,
-                   0,
-                   mpz);
+        if (order == -1) {
+            // Little-endian: mpz_export writes least-significant byte first at offset 0, leaving the
+            // zero-filled high bytes at the tail (correct for little-endian layout.
+            mpz_export(mem + data_addr, &written, order, sizeof(u8), 0, 0, mpz);
+        } else {
+            // Big-endian: mpz_export omits leading zero bytes and writes left-justified at offset 0.
+            // Right-justify into the tail so the leading bytes stay zero (correct for big-endian).
+            mpz_export(mem + data_addr + (size - required_size), &written, order, sizeof(u8), 0, 0, mpz);
+        }
 
-        assert(written <= size && "invalid number of bytes written");
+        assert(written <= required_size && "invalid number of bytes written");
     }
 
     void bn254fr_copy() {

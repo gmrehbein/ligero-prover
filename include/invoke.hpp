@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2025 Ligero, Inc.
+ * Copyright (C) 2023-2026 Ligero, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include <host_modules/vbn254fr.hpp>
 #include <host_modules/wasi_preview1.hpp>
 #include <host_modules/uint256.hpp>
+#include <host_modules/ecc.hpp>
 #include <util/timer.hpp>
 #include <interpreter.hpp>
 
@@ -50,6 +51,7 @@ void invoke(module_instance& module,
     ctx.template add_host_module<bn254fr_module<Context>>(&ctx);
     ctx.template add_host_module<vbn254fr_module<Context>>(&ctx);
     ctx.template add_host_module<uint256_module<Context>>(&ctx);
+    ctx.template add_host_module<ecc_module<Context>>(&ctx);
     // ctx.template add_host_module<zkp::rescue_prime_module<Context>>(&ctx);
 
     // if constexpr (requires { Context::support_RAM; }) {

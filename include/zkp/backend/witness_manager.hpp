@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2025 Ligero, Inc.
+ * Copyright (C) 2023-2026 Ligero, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -402,7 +402,6 @@ struct witness_manager {
         witness_add_random(k, *rand);
 
         mpz_assign(*tmp, v);
-        assert(*k.value_ptr() == *tmp);
 
         Field::mulmod(*tmp, *tmp, *rand);
         constsum_sub(*tmp);

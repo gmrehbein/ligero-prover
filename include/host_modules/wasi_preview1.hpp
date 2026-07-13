@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2025 Ligero, Inc.
+ * Copyright (C) 2023-2026 Ligero, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -110,8 +110,6 @@ struct wasi_preview1_module : public host_module {
         for (char **env = environ; *env != nullptr; ++env) {
             ++environ_count;
             environ_size += std::strlen(*env) + 1;  // include null terminator
-
-            std::cout << "environ[" << environ_count << "]: " << *env << std::endl;
         }
 
         ctx_->memory_store(count_ptr, environ_count);

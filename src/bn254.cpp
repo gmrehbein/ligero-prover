@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2025 Ligero, Inc.
+ * Copyright (C) 2023-2026 Ligero, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,9 +56,9 @@ bn254_gmp::generate_omegas(size_t k, size_t n) {
     value_type w_2k;
     value_type w_4k;
 
-    powmod_ui(w_k,  root1, (1ul << root1_pow2_degree) / k);
-    powmod_ui(w_2k, root1, (1ul << root1_pow2_degree) / (2 * k));
-    powmod_ui(w_4k, root2, (1ul << root2_pow2_degree) / n);
+    powmod_ui(w_k,  root1, (uint64_t(1) << root1_pow2_degree) / k);
+    powmod_ui(w_2k, root1, (uint64_t(1) << root1_pow2_degree) / (2 * k));
+    powmod_ui(w_4k, root2, (uint64_t(1) << root2_pow2_degree) / n);
     
     return { w_k, w_2k, w_4k };
 }

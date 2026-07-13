@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2025 Ligero, Inc.
+ * Copyright (C) 2023-2026 Ligero, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,8 +25,10 @@
 #include <optional>
 #include <string_view>
 #include <unordered_map>
+#include <util/log.hpp>
 #include <variant>
 #include <vector>
+#include <format>
 
 #include <boost/icl/interval_set.hpp>
 #include <boost/icl/discrete_interval.hpp>
@@ -105,8 +107,15 @@ struct memory_instance {
     constexpr static size_t page_size = 65536;  /* 64KB */
     memory_instance(memory_kind k, size_t mem_size) : kind(k), data(mem_size, 0) { }
 
+    void mark_secret_n(u32 begin, u32 count) {
+        secret_set_ += icl::discrete_interval<u32>::right_open(begin, begin + count);
+    }
+    
     void mark_secret_closed(u32 begin, u32 end) {
         // std::cout << "mark[" << begin << " - " << end << "]" << std::endl;
+        if (end < begin) {
+            LIGERO_LOG_WARNING << std::format("[{}, {}) is not a valid range", begin, end); 
+        }
         secret_set_ += icl::discrete_interval<u32>::right_open(begin, end);
     }
 

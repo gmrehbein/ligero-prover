@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2025 Ligero, Inc.
+ * Copyright (C) 2023-2026 Ligero, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,9 +20,6 @@
 #include <vector>
 #include <gmp.h>
 #include <gmpxx.h>
-
-#include <boost/serialization/serialization.hpp>
-#include <boost/serialization/split_member.hpp>
 
 namespace ligero::vm {
 

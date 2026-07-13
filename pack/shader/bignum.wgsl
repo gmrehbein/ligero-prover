@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2025 Ligero, Inc.
+ * Copyright (C) 2023-2026 Ligero, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,29 +38,13 @@ struct u32_wide     { lo    : u32,     hi : u32     }
 struct uint128_wide { lo    : uint128, hi : uint128 }
 struct bigint_wide  { lo    : bigint,  hi : bigint  }
 
-// P = 0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001
-const Fp_p : bigint = bigint(array<uint128, 2>(
-    uint128(vec4u(0xF0000001, 0x43E1F593, 0x79B97091, 0x2833E848)),
-    uint128(vec4u(0x8181585D, 0xB85045B6, 0xE131A029, 0x30644E72))
-));
-
-// 2P = 0x60c89ce5c263405370a08b6d0302b0ba5067d090f372e12287c3eb27e0000002
-const Fp_2p : bigint = bigint(array<uint128, 2>(
-    uint128(vec4u(0xE0000002, 0x87C3EB27, 0xF372E122, 0x5067D090)),
-    uint128(vec4u(0x0302B0BA, 0x70A08B6D, 0xC2634053, 0x60C89CE5))
-));
-
-// Montgomery factor J = p^(-1) mod 2^256
-const Fp_J : bigint = bigint(array<uint128, 2>(
-    uint128(vec4u(0x10000001, 0x3D1E0A6C, 0xB396EE4C, 0x9A7979B4)),
-    uint128(vec4u(0x66F9DC6E, 0x1C6567D7, 0xF27CBE4D, 0x8C07D0E2))
-));
-
-// Barrett factor Mu = 2^(254 * 2) // p
-const Fp_mu : bigint = bigint(array<uint128, 2>(
-    uint128(vec4u(0xBE1DE925, 0x620703A6, 0x09E880AE, 0x71448520)),
-    uint128(vec4u(0x68073014, 0xAB074A58, 0x623A04A7, 0x54A47462))
-));
+struct global_config_t {
+    p              : bigint,       // 32 bytes
+    double_p       : bigint,       // 32 bytes
+    J              : bigint,       // 32 bytes
+    barrett_factor : bigint,       // 32 bytes
+    constant       : bigint,       // 32 bytes
+}
 
 // Padded to 256 bytes to use dynamic offsets
 // params[0]: N
@@ -76,22 +60,16 @@ struct ntt_config_t {
 
 var<workgroup> ntt_workgroup_cache : array<bigint, ntt_cache_size>;
 
-@group(0) @binding(0) var<storage, read_write> ntt_buffer    : array<bigint>;
-@group(0) @binding(1) var<storage, read>       vector_x      : array<bigint>;
-@group(0) @binding(2) var<storage, read>       vector_y      : array<bigint>;
-@group(0) @binding(3) var<storage, read_write> vector_out    : array<bigint>;
-// Buffer for computing out = coeff * r^exp mod p for some base r in precompute table
-@group(0) @binding(4) var<storage, read>       powmod_exp    : array<u32>;
-@group(0) @binding(5) var<storage, read>       powmod_coeff  : array<bigint>;
-@group(0) @binding(6) var<storage, read_write> powmod_out    : array<bigint>;
+@group(0) @binding(0) var<uniform>             global_config : global_config_t;
+@group(0) @binding(1) var<uniform>             sample_index  : array<vec4u, num_sampling>;
 
-@group(1) @binding(0) var<uniform>             ntt_config    : ntt_config_t;
-@group(1) @binding(1) var<storage, read>       ntt_omegas    : array<bigint>;
-@group(1) @binding(2) var<uniform>             input_scalar  : bigint;
-@group(1) @binding(3) var<uniform>             sample_index  : array<vec4u, num_sampling>;
-// Precomputed lookup table r^(2^0), r^(2^1), r^(2^2), ..., r^(2^31) in Montgomery form
-@group(1) @binding(4) var<uniform>             powmod_table  : array<bigint, 32>;
+@group(1) @binding(0) var<storage, read_write> ntt_buffer    : array<bigint>;
+@group(1) @binding(1) var<storage, read>       vector_x      : array<bigint>;
+@group(1) @binding(2) var<storage, read>       vector_y      : array<bigint>;
+@group(1) @binding(3) var<storage, read_write> vector_out    : array<bigint>;
 
+@group(2) @binding(0) var<uniform>             ntt_config    : ntt_config_t;
+@group(2) @binding(1) var<storage, read>       ntt_omegas    : array<bigint>;
 
 fn uint128_from_u32(x : u32) -> uint128 {
     return uint128(vec4u(x, 0u, 0u, 0u));
@@ -370,61 +348,29 @@ fn bigint_mul_hi(a : bigint, b : bigint) -> bigint {
     return bigint_mul_wide(a, b).hi;
 }
 
-// ---------- Montgomery Reduction ----------
-
-// Montgomery reduction step.
-// Reduces a 2×N-bit product into an N-bit residue in [-p, p).
-// Requires input in Montgomery form
-fn _montgomery_reduce_helper(wide : bigint_wide, p : bigint, J : bigint) -> bigint_cc {
-    let Q = bigint_mul_lo(wide.lo, J);
+fn montgomery_mul(a : bigint, b : bigint, p : bigint, J : bigint) -> bigint {
+    let U = bigint_mul_wide(a, b);
+    let Q = bigint_mul_lo(U.lo, J);
     let H = bigint_mul_hi(Q, p);
-    return bigint_sub_cc(wide.hi, H);
-}
-
-// Montgomery reduction.
-// Reduces a 2×N-bit product into an N-bit residue in [0, p).
-// Requires input in Montgomery form
-fn montgomery_reduce_wide(wide : bigint_wide, p : bigint, J : bigint) -> bigint {
-    var cc  = _montgomery_reduce_helper(wide, p, J);
-    if (cc.carry) {
-        cc.sum = bigint_add(cc.sum, p);
-    }
-    return cc.sum;
-}
-
-// Montgomery reduction.
-// Reduces a 2×N-bit product into an N-bit residue in [0, 2p).
-// Requires input in Montgomery form
-fn montgomery_reduce_wide_2p(wide : bigint_wide, p : bigint, J : bigint) -> bigint {
-    let t = _montgomery_reduce_helper(wide, p, J).sum;
-    return bigint_add(t, p);
-}
-
-fn montgomery_mul(a : bigint, b : bigint) -> bigint {
-    let U = bigint_mul_wide(a, b);
-    return montgomery_reduce_wide(U, Fp_p, Fp_J);
-}
-
-fn montgomery_mul_2p(a : bigint, b : bigint) -> bigint {
-    let U = bigint_mul_wide(a, b);
-    return montgomery_reduce_wide_2p(U, Fp_p, Fp_J);
+    let r = bigint_sub(U.hi, H);
+    return bigint_add(r, p); // adjust to (0, 2p]
 }
 
 
 // ---------- Barrett Reduction ----------
 
 fn barrett_reduce_wide(x : bigint_wide) -> bigint {
-    let xr_hi  : bigint_wide = bigint_mul_wide(x.hi, Fp_mu);
-    let xr_lo  : bigint      = bigint_mul_hi(x.lo, Fp_mu);
+    let xr_hi  : bigint_wide = bigint_mul_wide(x.hi, global_config.barrett_factor);
+    let xr_lo  : bigint      = bigint_mul_hi(x.lo, global_config.barrett_factor);
     let sum_lo : bigint_cc   = bigint_add_cc(xr_hi.lo, xr_lo);
     let sum_hi : bigint      = bigint_add(xr_hi.hi, bigint_from_u32(u32(sum_lo.carry)));
     let z_hi   : bigint      = bigint_shl(sum_hi, 4u);
     let z_lo   : bigint      = bigint_shr(sum_lo.sum, 252u);
     let z      : bigint      = bigint_add(z_hi, z_lo);
-    let q      : bigint      = bigint_mul_lo(z, Fp_p);
+    let q      : bigint      = bigint_mul_lo(z, global_config.p);
     let result : bigint      = bigint_sub(x.lo, q);
 
-    let cc = bigint_sub_cc(result, Fp_p);
+    let cc = bigint_sub_cc(result, global_config.p);
     if (!cc.carry) {
         return cc.sum;
     }
@@ -576,27 +522,6 @@ fn modinv(x : bigint, m : bigint) -> bigint {
     return u;
 }
 
-// ---------- Exponent Mod ----------
-
-// Compute 32-bit exponent with a Montgomery precompute table
-// Output r ^ exp mod p in Montgomery form
-fn powmod(table : ptr<uniform, array<bigint, 32>>, exponent : u32) -> bigint {
-    // Initialize out to be 1 * R mod p
-    var out = bigint(array<uint128, num_limbs>(
-                         uint128(vec4u(0x4FFFFFFB, 0xAC96341C, 0x9F60CD29, 0x36FC7695)),
-                         uint128(vec4u(0x7879462E, 0x666EA36F, 0x9A07DF2F, 0x0E0A77C1))));
-
-    for (var i : u32 = 0u; i < 32u; i++) {
-        let bi : u32 = (exponent >> i) & 1u;
-        
-        if (bi == 1u) {
-            out = montgomery_mul(out, (*table)[i]);
-        }
-    }
-
-    return out;
-}
-
 // ---------- Bit Reversal ---------
 
 @compute @workgroup_size(thread_block_size)
@@ -629,12 +554,12 @@ fn ntt_reduce4p(
     for (var idx : u32 = globalIdx.x; idx < N; idx += workgroups.x * thread_block_size) {
         var val : bigint = ntt_buffer[idx];
 
-        let cc1 = bigint_sub_cc(val, Fp_2p);
+        let cc1 = bigint_sub_cc(val, global_config.double_p);
         if (!cc1.carry) {
             val = cc1.sum;
         }
 
-        let cc2 = bigint_sub_cc(val, Fp_p);
+        let cc2 = bigint_sub_cc(val, global_config.p);
         if (!cc2.carry) {
             val = cc2.sum;
         }
@@ -650,8 +575,14 @@ fn ntt_adjust_inverse_reduce(
 {
     let N    = ntt_config.params[0];
     for (var idx : u32 = globalIdx.x; idx < N; idx += workgroups.x * thread_block_size) {
-        let val : bigint = ntt_buffer[idx];
-        ntt_buffer[idx] = montgomery_mul(val, ntt_config.N_inv);
+        var val : bigint = ntt_buffer[idx];
+        val    = montgomery_mul(val, ntt_config.N_inv, global_config.p, global_config.J);
+        let cc = bigint_sub_cc(val, global_config.p);
+        if (!cc.carry) {
+            val = cc.sum;
+        }
+
+        ntt_buffer[idx] = val;
     }
 }
 
@@ -666,7 +597,7 @@ fn ntt_fold(
         let y : bigint = ntt_buffer[idx + half];
 
         let sum = bigint_add(x, y);
-        var cc  = bigint_sub_cc(sum, Fp_p);
+        var cc  = bigint_sub_cc(sum, global_config.p);
         if (cc.carry) {
             cc.sum = sum;
         }
@@ -701,18 +632,21 @@ fn ntt_forward_radix2(@builtin(global_invocation_id) globalIdx : vec3u,
         y = ntt_buffer[k + M2];
 
         var tmp = bigint_add(x, y);
-        let cc = bigint_sub_cc(tmp, Fp_2p);
+        let cc = bigint_sub_cc(tmp, global_config.double_p);
         if (!cc.carry) {
             tmp = cc.sum;
         }
 
         ntt_buffer[k] = tmp;
 
-        y   = bigint_add(x, bigint_sub(Fp_2p, y));
+        y   = bigint_add(x, bigint_sub(global_config.double_p, y));
         tmp = ntt_omegas[index];
-        tmp = montgomery_mul_2p(y, tmp);
+        tmp = montgomery_mul(y, tmp, global_config.p, global_config.J);
 
         ntt_buffer[k + M2] = tmp;
+
+        // ntt_buffer[k] = bigint_from_u32(M);
+        // ntt_buffer[k + M2] = bigint_from_u32(iter);
     }
 }
 
@@ -750,14 +684,14 @@ fn ntt_forward_radix2_shared(
         let y = ntt_workgroup_cache[k + M2];
 
         u = bigint_add(x, y);
-        let ucc = bigint_sub_cc(u, Fp_2p);
+        let ucc = bigint_sub_cc(u, global_config.double_p);
         if (!ucc.carry) {
             u = ucc.sum;
         }
 
         let vcc = bigint_sub_cc(x, y);
         if (vcc.carry) {
-            v = bigint_add(vcc.sum, Fp_2p);
+            v = bigint_add(vcc.sum, global_config.double_p);
         }
         else {
             v = vcc.sum;
@@ -766,7 +700,7 @@ fn ntt_forward_radix2_shared(
         ntt_workgroup_cache[k] = u;
 
         w = ntt_omegas[omega_base + ntt_index];
-        v = montgomery_mul_2p(v, w);
+        v = montgomery_mul(v, w, global_config.p, global_config.J);
         
         ntt_workgroup_cache[k + M2] = v;
 
@@ -781,26 +715,26 @@ fn ntt_forward_radix2_shared(
 
         u = bigint_add(x, y);
         // Reduce to [0, 2p)
-        let uc1 = bigint_sub_cc(u, Fp_2p);
+        let uc1 = bigint_sub_cc(u, global_config.double_p);
         if (!uc1.carry) {
             u = uc1.sum;
         }
 
         // Reduce to [0, p)
-        let uc2 = bigint_sub_cc(u, Fp_p);
+        let uc2 = bigint_sub_cc(u, global_config.p);
         if (!uc2.carry) {
             u = uc2.sum;
         }
 
-        v = bigint_sub(bigint_add(x, Fp_2p), y);
+        v = bigint_sub(bigint_add(x, global_config.double_p), y);
         // Reduce to [0, 2p)
-        let vc1 = bigint_sub_cc(v, Fp_2p);
+        let vc1 = bigint_sub_cc(v, global_config.double_p);
         if (!vc1.carry) {
             v = vc1.sum;
         }
 
         // Reduce to [0, p)
-        let vc2 = bigint_sub_cc(v, Fp_p);
+        let vc2 = bigint_sub_cc(v, global_config.p);
         if (!vc2.carry) {
             v = vc2.sum;
         }
@@ -841,9 +775,9 @@ fn ntt_inverse_radix2(
         y = ntt_buffer[k + M2];
         w = ntt_omegas[index];
 
-        y = montgomery_mul_2p(y, w);
+        y = montgomery_mul(y, w, global_config.p, global_config.J);
 
-        let cc = bigint_sub_cc(x, Fp_2p);
+        let cc = bigint_sub_cc(x, global_config.double_p);
         if (!cc.carry) {
             x = cc.sum;
         }
@@ -852,7 +786,7 @@ fn ntt_inverse_radix2(
         w = bigint_add(x, y);
         ntt_buffer[k] = w;
 
-        w = bigint_add(x, bigint_sub(Fp_2p, y));
+        w = bigint_add(x, bigint_sub(global_config.double_p, y));
         ntt_buffer[k + M2] = w;
     }
 }
@@ -883,18 +817,18 @@ fn ntt_inverse_radix2_shared(
         x = ntt_workgroup_cache[k];
         y = ntt_workgroup_cache[k + 1];
 
-        let ucc = bigint_sub_cc(x, Fp_2p);
+        let ucc = bigint_sub_cc(x, global_config.double_p);
         if (!ucc.carry) {
             x = ucc.sum;
         }
 
-        let vcc = bigint_sub_cc(y, Fp_2p);
+        let vcc = bigint_sub_cc(y, global_config.double_p);
         if (!vcc.carry) {
             y = vcc.sum;
         }
 
         ntt_workgroup_cache[k]     = bigint_add(x, y);
-        ntt_workgroup_cache[k + 1] = bigint_add(x, bigint_sub(Fp_2p, y));
+        ntt_workgroup_cache[k + 1] = bigint_add(x, bigint_sub(global_config.double_p, y));
 
         workgroupBarrier();
     }
@@ -914,15 +848,15 @@ fn ntt_inverse_radix2_shared(
         y = ntt_workgroup_cache[k + M2];
 
         w = ntt_omegas[omega_base + ntt_index];
-        y = montgomery_mul_2p(y, w);
+        y = montgomery_mul(y, w, global_config.p, global_config.J);
 
-        let cc = bigint_sub_cc(x, Fp_2p);
+        let cc = bigint_sub_cc(x, global_config.double_p);
         if (!cc.carry) {
             x = cc.sum;
         }
 
         ntt_workgroup_cache[k]      = bigint_add(x, y);
-        ntt_workgroup_cache[k + M2] = bigint_add(x, bigint_sub(Fp_2p, y));
+        ntt_workgroup_cache[k + M2] = bigint_add(x, bigint_sub(global_config.double_p, y));
 
         workgroupBarrier();
     }
@@ -943,7 +877,7 @@ fn EltwiseAddMod(@builtin(global_invocation_id) globalIdx : vec3u,
         out     = bigint_add(x, y);
 
         // Adjust overflow
-        let cc = bigint_sub_cc(out, Fp_p);
+        let cc = bigint_sub_cc(out, global_config.p);
         if (!cc.carry) {
             out = cc.sum;
         }
@@ -963,7 +897,7 @@ fn EltwiseAddAssignMod(@builtin(global_invocation_id) globalIdx : vec3u,
         out     = bigint_add(x, y);
 
         // Adjust overflow
-        let cc = bigint_sub_cc(out, Fp_p);
+        let cc = bigint_sub_cc(out, global_config.p);
         if (!cc.carry) {
             out = cc.sum;
         }
@@ -979,10 +913,10 @@ fn EltwiseAddConstantMod(@builtin(global_invocation_id) globalIdx : vec3u,
     var out : bigint;
     for (var idx : u32 = globalIdx.x; idx < arrayLength(&vector_x); idx += workgroups.x * thread_block_size) {
         let x   = vector_x[idx];
-        out     = bigint_add(x, input_scalar);
+        out     = bigint_add(x, global_config.constant);
 
         // Adjust overflow
-        let cc = bigint_sub_cc(out, Fp_p);
+        let cc = bigint_sub_cc(out, global_config.p);
         if (!cc.carry) {
             out = cc.sum;
         }
@@ -1002,7 +936,7 @@ fn EltwiseSubMod(@builtin(global_invocation_id) globalIdx : vec3u,
         out     = bigint_sub_cc(x, y);
 
         if (out.carry) {
-            out.sum = bigint_add(out.sum, Fp_p);
+            out.sum = bigint_add(out.sum, global_config.p);
         }
 
         vector_out[idx] = out.sum;
@@ -1016,10 +950,10 @@ fn EltwiseSubConstantMod(@builtin(global_invocation_id) globalIdx : vec3u,
     var out : bigint_cc;
     for (var idx : u32 = globalIdx.x; idx < arrayLength(&vector_x); idx += workgroups.x * thread_block_size) {
         let x = vector_x[idx];
-        out   = bigint_sub_cc(x, input_scalar);
+        out   = bigint_sub_cc(x, global_config.constant);
 
         if (out.carry) {
-            out.sum = bigint_add(out.sum, Fp_p);
+            out.sum = bigint_add(out.sum, global_config.p);
         }
 
         vector_out[idx] = out.sum;
@@ -1033,10 +967,10 @@ fn EltwiseConstantSubMod(@builtin(global_invocation_id) globalIdx : vec3u,
     var out : bigint_cc;
     for (var idx : u32 = globalIdx.x; idx < arrayLength(&vector_x); idx += workgroups.x * thread_block_size) {
         let x = vector_x[idx];
-        out   = bigint_sub_cc(input_scalar, x);
+        out   = bigint_sub_cc(global_config.constant, x);
 
         if (out.carry) {
-            out.sum = bigint_add(out.sum, Fp_p);
+            out.sum = bigint_add(out.sum, global_config.p);
         }
 
         vector_out[idx] = out.sum;
@@ -1063,7 +997,7 @@ fn EltwiseMultConstantMod(@builtin(global_invocation_id) globalIdx : vec3u,
     for (var idx : u32 = globalIdx.x; idx < arrayLength(&vector_x); idx += workgroups.x * thread_block_size) {
         let x : bigint = vector_x[idx];
 
-        let wide        = bigint_mul_wide(x, input_scalar);
+        let wide        = bigint_mul_wide(x, global_config.constant);
         vector_out[idx] = barrett_reduce_wide(wide);
     }
 }
@@ -1074,7 +1008,7 @@ fn EltwiseMontMultConstantMod(@builtin(global_invocation_id) globalIdx : vec3u,
 {
     for (var idx : u32 = globalIdx.x; idx < arrayLength(&vector_x); idx += workgroups.x * thread_block_size) {
         let x   : bigint = vector_x[idx];
-        let out : bigint = montgomery_mul(x, input_scalar);
+        let out : bigint = montgomery_mul(x, global_config.constant, global_config.p, global_config.J);
         vector_out[idx]  = out;
     }
 }
@@ -1087,7 +1021,7 @@ fn EltwiseDivMod(@builtin(global_invocation_id) globalIdx : vec3u,
         let x : bigint = vector_x[idx];
         let y : bigint = vector_y[idx];
 
-        let inv  = modinv(y, Fp_p);
+        let inv  = modinv(y, global_config.p);
         let wide = bigint_mul_wide(x, inv);
         let out  = barrett_reduce_wide(wide);
 
@@ -1107,7 +1041,7 @@ fn EltwiseFMAMod(@builtin(global_invocation_id) globalIdx : vec3u,
         let wide = bigint_mul_wide(x, y);
         let tmp  = barrett_reduce_wide(wide);
         out      = bigint_add(out, tmp);
-        let cc   = bigint_sub_cc(out, Fp_p);
+        let cc   = bigint_sub_cc(out, global_config.p);
         if (!cc.carry) {
             out = cc.sum;
         }
@@ -1124,10 +1058,10 @@ fn EltwiseFMAConstantMod(@builtin(global_invocation_id) globalIdx : vec3u,
         let x   : bigint = vector_x[idx];
         var out : bigint = vector_out[idx];
 
-        let wide = bigint_mul_wide(x, input_scalar);
+        let wide = bigint_mul_wide(x, global_config.constant);
         let tmp  = barrett_reduce_wide(wide);
         out      = bigint_add(out, tmp);
-        let cc   = bigint_sub_cc(out, Fp_p);
+        let cc   = bigint_sub_cc(out, global_config.p);
         if (!cc.carry) {
             out = cc.sum;
         }
@@ -1141,44 +1075,12 @@ fn EltwiseBitDecompose(@builtin(global_invocation_id) globalIdx : vec3u) {
     let idx = globalIdx.x;
     var x   : bigint = vector_x[idx];
 
-    let bit_index : u32 = input_scalar.limbs[0].limbs[0];
+    let bit_index : u32 = global_config.constant.limbs[0].limbs[0];
     let bit       : u32 = bigint_select_bit(&x, bit_index);
 
     vector_out[idx] = bigint_from_u32(bit);
 }
 
-@compute @workgroup_size(thread_block_size)
-fn EltwisePowMod(@builtin(global_invocation_id) globalIdx : vec3u,
-                   @builtin(num_workgroups) workgroups : vec3u)
-{
-    for (var idx : u32 = globalIdx.x; idx < arrayLength(&powmod_exp); idx += workgroups.x * thread_block_size) {
-        let exp   : u32    = powmod_exp[idx];
-        let coeff : bigint = powmod_coeff[idx];
-
-        let pow : bigint = powmod(&powmod_table, exp);
-        powmod_out[idx]  = montgomery_mul(coeff, pow);
-    }
-}
-
-@compute @workgroup_size(thread_block_size)
-fn EltwisePowAddMod(@builtin(global_invocation_id) globalIdx : vec3u,
-                      @builtin(num_workgroups) workgroups : vec3u)
-{
-    for (var idx : u32 = globalIdx.x; idx < arrayLength(&powmod_exp); idx += workgroups.x * thread_block_size) {
-        let exp   : u32    = powmod_exp[idx];
-        let coeff : bigint = powmod_coeff[idx];
-        let pow   : bigint = montgomery_mul(coeff, powmod(&powmod_table, exp));
-        let sum   : bigint = bigint_add(pow, powmod_out[idx]);
-
-        let cc = bigint_sub_cc(sum, Fp_p);
-        if (cc.carry) {
-            powmod_out[idx] = sum;
-        }
-        else {
-            powmod_out[idx] = cc.sum;
-        }
-    }
-}
 
 // ---------- Sampling ----------
 

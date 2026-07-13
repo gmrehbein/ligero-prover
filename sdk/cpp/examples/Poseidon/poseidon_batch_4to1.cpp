@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2025 Ligero, Inc.
+ * Copyright (C) 2023-2026 Ligero, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 #include <ligetron/poseidon.h>
 
 using namespace ligetron;
-using poseidon_context_fast_t = poseidon_vec_context<poseidon_permx5_254bit_3, true>;
+using poseidon_context_fast_t = poseidon_vec_context<poseidon_permx5_254bit_5, true>;
 
 int main(int argc, char *argv[]) {
     const char* input_num = argv[1];
@@ -31,7 +31,7 @@ int main(int argc, char *argv[]) {
     ctx.digest_update(input);
     ctx.digest_final();
 
-    ctx.state[0].print_hex();
+    ctx.state[0].print_dec();
 
     vbn254fr_class::assert_equal(ctx.state[0], ref);
 }
